@@ -3,6 +3,10 @@
 ##Tested OS : CentOS 6.4
 ##Date : 20th November 2013
 
+###Revision 0.01
+###Date : 25th November 2013
+###Added Permalinks Fix
+
 #Variables
 source /etc/sysconfig/network-scripts/ifcfg-eth0
 IPADDR=`ifconfig eth0 |grep inet\ addr |cut -d":" -f2 |cut -d" " -f1`
