@@ -1,0 +1,79 @@
+####CentOS Lampstack Install Script
+##Author : Johnny Tan
+##Tested OS : CentOS 6.4
+##Date : 20th November 2013
+
+#Variables
+source /etc/sysconfig/network-scripts/ifcfg-eth0
+IPADDR=`ifconfig eth0 |grep inet\ addr |cut -d":" -f2 |cut -d" " -f1`
+echo "Enter your desired password for MySQL root access :"
+read -s MYSQLPASS
+echo ""
+echo "===Generating MySQL Database for Wordpress==="
+echo "[MYSQL]Enter your desired Wordpress Database name (A-Z, a-z, 0-9) [Special Charaters not Allowed] :"
+read -s DBNAME
+echo ""
+echo "[MYSQL]Enter your desired Wordpress User name (A-Z, a-z, 0-9) [Special Charaters not Allowed] :"
+read -s DBUSER
+echo ""
+echo "[MYSQL]Enter your desired Wordpress Password (A-Z, a-z, 0-9) [Special Charaters not Allowed] :"
+read -s DBPASS
+echo ""
+echo ""
+echo "Configuring Wordpress for your Server"
+
+#Apache Installation
+yum install httpd -y > /dev/null &&
+service iptables stop > /dev/null &&
+chkconfig iptables off &&
+chkconfig httpd on &&
+sed -i -e "s/#ServerName www.example.com:80/ServerName $IPADDR:80/g" /etc/httpd/conf/httpd.conf &&
+service httpd start > /dev/null &&
+
+#MySQL Installation
+yum install mysql-server -y > /dev/null &&
+service mysqld start > /dev/null &&
+chkconfig mysqld on &&
+/usr/bin/mysqladmin -u root password $MYSQLPASS &&
+echo "DELETE FROM mysql.user WHERE User='';" | mysql -u root -p$MYSQLPASS &&
+echo "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" | mysql -u root -p$MYSQLPASS &&
+echo "DROP DATABASE test;" | mysql -u root -p$MYSQLPASS &&
+echo "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'" | mysql -u root -p$MYSQLPASS &&
+echo "FLUSH PRIVILEGES;" | mysql -u root -p$MYSQLPASS &&
+
+#PHP Installation
+yum install php php-mysql -y > /dev/null &&
+echo "<?php phpinfo(); ?>" >> /var/www/html/info.php &&
+service httpd restart > /dev/null &&
+#MySQL-Wordpress Installation
+echo "CREATE DATABASE $DBNAME;" | mysql -u root -p$MYSQLPASS &&
+echo "CREATE USER $DBUSER@localhost;" | mysql -u root -p$MYSQLPASS &&
+echo "SET PASSWORD FOR $DBUSER@localhost= PASSWORD('$DBPASS');" | mysql -u root -p$MYSQLPASS &&
+echo "GRANT ALL PRIVILEGES ON $DBNAME.* TO $DBUSER@localhost IDENTIFIED BY '$DBPASS';" | mysql -u root -p$MYSQLPASS &&
+echo "FLUSH PRIVILEGES;" | mysql -u root -p$MYSQLPASS &&
+
+#Download Wordpress
+yum install wget -y > /dev/null &&
+cd /usr/local/src &&
+wget -q http://wordpress.org/latest.tar.gz &&
+tar -zxvf latest.tar.gz > /dev/null &&
+cd /usr/local/src/wordpress &&
+cp wp-config-sample.php wp-config.php &&
+sed -i -e "s/database_name_here/$DBNAME/g" /usr/local/src/wordpress/wp-config.php &&
+sed -i -e "s/username_here/$DBUSER/g" /usr/local/src/wordpress/wp-config.php &&
+sed -i -e "s/password_here/$DBPASS/g" /usr/local/src/wordpress/wp-config.php &&
+cp -r /usr/local/src/wordpress/* /var/www/html &&
+
+#Install PHP-GD library Files
+yum install php-gd -y > /dev/null &&
+
+#Permalinks Fix
+cd /var/www/html &&
+touch /var/www/html/.htaccess &&
+chown apache:apache /var/www/html/.htaccess &&
+sed -i -e "s/AllowOverride None/AllowOverride ALL/g" /etc/httpd/conf/httpd.conf &&
+
+#Change wp-content Owner to Apache
+chown -R apache:apache /var/www/html/wp-content &&
+service httpd restart > /dev/null &&
+echo "Done! Now you can access your Wordpress setup by typing into your browser http://$IPADDR/wp-admin"
